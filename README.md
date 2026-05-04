@@ -114,4 +114,4 @@ All challenges were part of a legal CTF environment.
 
 ---
 
-If you’re reviewing this repo, feel free to explore the individual folders for challenge-specific approaches and artifacts.
+⭐ If you found this repository useful, consider giving it a star!
