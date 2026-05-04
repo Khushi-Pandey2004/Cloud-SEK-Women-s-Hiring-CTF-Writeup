@@ -110,7 +110,7 @@ All challenges were part of a legal CTF environment.
 
 ## 👤 Author
 
-**Khushi**
+**Khushi (predator)**
 
 ---
 
