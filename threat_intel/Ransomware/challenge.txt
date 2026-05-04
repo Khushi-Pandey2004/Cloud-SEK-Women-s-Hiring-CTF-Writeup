@@ -1,0 +1,247 @@
+# Reset and re-register with the proper static binaries
+sudo docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+# Now try running the container again
+sudo docker run --platform linux/arm64 -it \
+  -v ~/Desktop/Cloud\ SEK/threat_intel/Artifacts:/data \
+  haloreaper/halo-decryptor-encryptor:v2.3
+Unable to find image 'multiarch/qemu-user-static:latest' locally
+latest: Pulling from multiarch/qemu-user-static
+205dae5015e7: Pull complete 
+816739e52091: Pull complete 
+30abb83a18eb: Pull complete 
+0657daef200b: Pull complete 
+30c9c93f40b9: Pull complete 
+Digest: sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0
+Status: Downloaded newer image for multiarch/qemu-user-static:latest
+Setting /usr/bin/qemu-alpha-static as binfmt interpreter for alpha
+Setting /usr/bin/qemu-arm-static as binfmt interpreter for arm
+Setting /usr/bin/qemu-armeb-static as binfmt interpreter for armeb
+Setting /usr/bin/qemu-sparc-static as binfmt interpreter for sparc
+Setting /usr/bin/qemu-sparc32plus-static as binfmt interpreter for sparc32plus
+Setting /usr/bin/qemu-sparc64-static as binfmt interpreter for sparc64
+Setting /usr/bin/qemu-ppc-static as binfmt interpreter for ppc
+Setting /usr/bin/qemu-ppc64-static as binfmt interpreter for ppc64
+Setting /usr/bin/qemu-ppc64le-static as binfmt interpreter for ppc64le
+Setting /usr/bin/qemu-m68k-static as binfmt interpreter for m68k
+Setting /usr/bin/qemu-mips-static as binfmt interpreter for mips
+Setting /usr/bin/qemu-mipsel-static as binfmt interpreter for mipsel
+Setting /usr/bin/qemu-mipsn32-static as binfmt interpreter for mipsn32
+Setting /usr/bin/qemu-mipsn32el-static as binfmt interpreter for mipsn32el
+Setting /usr/bin/qemu-mips64-static as binfmt interpreter for mips64
+Setting /usr/bin/qemu-mips64el-static as binfmt interpreter for mips64el
+Setting /usr/bin/qemu-sh4-static as binfmt interpreter for sh4
+Setting /usr/bin/qemu-sh4eb-static as binfmt interpreter for sh4eb
+Setting /usr/bin/qemu-s390x-static as binfmt interpreter for s390x
+Setting /usr/bin/qemu-aarch64-static as binfmt interpreter for aarch64
+Setting /usr/bin/qemu-aarch64_be-static as binfmt interpreter for aarch64_be
+Setting /usr/bin/qemu-hppa-static as binfmt interpreter for hppa
+Setting /usr/bin/qemu-riscv32-static as binfmt interpreter for riscv32
+Setting /usr/bin/qemu-riscv64-static as binfmt interpreter for riscv64
+Setting /usr/bin/qemu-xtensa-static as binfmt interpreter for xtensa
+Setting /usr/bin/qemu-xtensaeb-static as binfmt interpreter for xtensaeb
+Setting /usr/bin/qemu-microblaze-static as binfmt interpreter for microblaze
+Setting /usr/bin/qemu-microblazeel-static as binfmt interpreter for microblazeel
+Setting /usr/bin/qemu-or1k-static as binfmt interpreter for or1k
+Setting /usr/bin/qemu-hexagon-static as binfmt interpreter for hexagon
+root@9b42e0b771a1:/app# ls -la /app/
+total 36
+drwxr-xr-x 1 root root 4096 Apr 30 13:52 .
+drwxr-xr-x 1 root root 4096 May  2 11:46 ..
+-rw-r--r-- 1 root root 1486 Apr 22 06:45 README.md
+-rwxr-xr-x 1 root root 2503 Apr 22 06:45 build.sh
+-rw-r--r-- 1 root root 3980 Apr 30 12:36 decryptor.py
+-rw-r--r-- 1 root root 3600 Apr 30 12:38 encryptor.py
+-rw-r--r-- 1 root root  159 Apr 30 12:40 pyproject.toml
+-rw-r--r-- 1 root root   20 Apr 30 12:28 requirements.txt
+-rw-r--r-- 1 root root  115 Apr 30 12:40 uv.lock
+root@9b42e0b771a1:/app# cat /app/requirements.txt
+pycryptodome>=3.19.0root@9b42e0b771a1:/app# find /app -name "*.py" | xargs ls -la                       find /app -name "*.py" | xargs ls -la
+
+-rw-r--r-- 1 root root 3980 Apr 30 12:36 /app/decryptor.py
+-rw-r--r-- 1 root root 3600 Apr 30 12:38 /app/encryptor.py
+root@9b42e0b771a1:/app# cat /app/decryptor.py
+#!/usr/bin/env python3
+"""
+OBSIDIAN HALO - HaloReaper v2.3.1
+Decryption Module
+
+RECOVERY TOOL - For authorized use only
+Build: prod-2026.04 | @halo_dev
+"""
+
+import hashlib
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import unpad
+import sys
+import os
+
+# MASTER KEY - keep in sync with encryptor.py
+MASTER_KEY = b"h4l0_r34p3r_2026_prod_v2"
+
+def derive_key(victim_id: str) -> bytes:
+    """
+    Derive per-victim decryption key
+    Must match encryptor's key derivation exactly
+    """
+    combined = MASTER_KEY + victim_id.encode('utf-8')
+    return hashlib.sha256(combined).digest()
+
+def decrypt_file(file_path: str, victim_id: str) -> bytes:
+    """
+    Decrypt .halo file using AES-256-CBC
+    File format: IV (16 bytes) + encrypted_data
+    Returns: decrypted plaintext
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Encrypted file not found: {file_path}")
+    
+    with open(file_path, 'rb') as f:
+        encrypted_data = f.read()
+    
+    if len(encrypted_data) < 16:
+        raise ValueError("File too small to contain valid encrypted data")
+    
+    # Extract IV and ciphertext
+    iv = encrypted_data[:16]
+    ciphertext = encrypted_data[16:]
+    
+    # Derive decryption key
+    key = derive_key(victim_id)
+    
+    # Decrypt using AES-256-CBC
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    try:
+        plaintext = unpad(cipher.decrypt(ciphertext), AES.block_size)
+        return plaintext
+    except Exception as e:
+        raise ValueError(f"Decryption failed - wrong key or corrupted data: {e}")
+
+def decrypt_to_file(encrypted_path: str, victim_id: str, output_path: str = None):
+    """
+    Decrypt .halo file and save result
+    If output_path is None, removes .halo extension
+    """
+    decrypted_data = decrypt_file(encrypted_path, victim_id)
+    
+    if output_path is None:
+        if encrypted_path.endswith('.halo'):
+            output_path = encrypted_path[:-5]  # Remove .halo extension
+        else:
+            output_path = encrypted_path + '.decrypted'
+    
+    with open(output_path, 'wb') as f:
+        f.write(decrypted_data)
+    
+    return output_path
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("HaloReaper Decryptor v2.3.1")
+        print("Usage: python decryptor.py <encrypted_file> <victim_id> [output_file]")
+        print("Example: python decryptor.py flag.txt.halo ARV-XXXX-XXXX")
+        print("         python decryptor.py data.xlsx.halo ARV-7F3A-9B2E recovered.xlsx")
+        sys.exit(1)
+    
+    encrypted_file = sys.argv[1]
+    victim_id = sys.argv[2]
+    output_file = sys.argv[3] if len(sys.argv) > 3 else None
+    
+    try:
+        print(f"[*] HaloReaper Decryptor v2.3.1")
+        print(f"[*] Target: {encrypted_file}")
+        print(f"[*] Victim ID: {victim_id}")
+        print(f"[*] Deriving key: SHA256(MASTER_KEY + '{victim_id}')")
+        
+        # Decrypt the file
+        result_path = decrypt_to_file(encrypted_file, victim_id, output_file)
+        
+        print(f"[+] Decryption successful!")
+        print(f"[+] Output: {result_path}")
+        
+        # If it looks like a text file, show content
+        if result_path.endswith(('.txt', '.log', '.md', '.py')):
+            try:
+                with open(result_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    if len(content) < 1000:  # Only show short files
+                        print(f"\n[+] Content:")
+                        print("-" * 40)
+                        print(content)
+                        print("-" * 40)
+            except:
+                pass  # Binary or encoding issues, skip preview
+        
+    except Exception as e:
+        print(f"[-] Error: {e}")
+        print("[-] Check that:")
+        print("    • File exists and is a valid .halo encrypted file")
+        print("    • Victim ID matches the one used for encryption")
+        print("    • File was encrypted with this version of HaloReaper")
+        sys.exit(1)
+root@9b42e0b771a1:/app# cat /app/README.md
+# OBSIDIAN HALO - HaloReaper v2.3.1
+
+**Internal Development Build**  
+**DO NOT SHARE OUTSIDE THE TEAM**
+
+## Build Notes - @halo_dev
+
+### Current Status
+- Encryption: STABLE (AES-256-CBC, per-victim keys)
+- Key derivation: SHA256(MASTER_KEY + victim_id) 
+- File targeting: .txt, .doc, .docx, .pdf, .xlsx, .sql, .csv
+- Tested on: Windows 10, Ubuntu 20.04, CentOS 7
+
+### TODO for v2.4
+- [ ] Move MASTER_KEY to environment variable (security)
+- [ ] Add multi-threading for large directories  
+- [ ] Implement Bitcoin payment verification
+- [ ] Better error handling for network drives
+- [ ] Obfuscate strings in final binary
+
+### Known Issues
+- Some AV vendors flag the binary (working on evasion)
+- Encryption fails on files >2GB (memory limits)
+- Network shares sometimes timeout
+
+### Build Pipeline
+```bash
+# Standard build process
+./build.sh
+# Output: haloreaper_v2.3.1.exe (Windows)
+# Output: haloreaper_v2.3.1 (Linux)
+```
+
+### Key Rotation Schedule
+- Current: h4l0_r34p3r_2026_prod_v2 (expires: Q3 2026)
+- Previous: h4l0_r34p3r_2026_prod_v1 (RETIRED)
+- Backup: [REDACTED] (emergency use only)
+
+### Deployment Notes
+- Always test on isolated VM first
+- Deploy ransom note AFTER encryption completes
+- Monitor Bitcoin wallet: [WALLET_ADDRESS_REDACTED]
+- Support channel: @halo_operator (Telegram)
+
+---
+**Remember: OPSEC is everything. One mistake burns the whole operation.**
+
+*— Built with pride by the OBSIDIAN HALO development team*
+*— "Digital reapers reaping digital rewards"*
+root@9b42e0b771a1:/app# ls /data/
+Warning.txt  flag.txt.halo
+root@9b42e0b771a1:/app# python3 /app/decryptor.py /data/flag.txt.halo ARV-7F3A-9B2E /data/flag.txt
+[*] HaloReaper Decryptor v2.3.1
+[*] Target: /data/flag.txt.halo
+[*] Victim ID: ARV-7F3A-9B2E
+[*] Deriving key: SHA256(MASTER_KEY + 'ARV-7F3A-9B2E')
+[+] Decryption successful!
+[+] Output: /data/flag.txt
+
+[+] Content:
+----------------------------------------
+CloudSEK{Flag_1_0ps3c_1s_h4rd3r_th4n_cryp70}
+
+----------------------------------------
+
